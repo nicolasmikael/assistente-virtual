@@ -1,12 +1,12 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
-from typing import Optional, Dict, List
-import os
+from typing import Optional, Dict
 from pathlib import Path
 from dotenv import load_dotenv
+import logging
 import re
 
 from assistente import AssistenteVirtual
@@ -14,9 +14,21 @@ from rag_system import RAGSystem
 
 load_dotenv()
 
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
+
 # Get the absolute path to the static directory
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
+
+
+def handle_error(endpoint: str, error: Exception) -> JSONResponse:
+    """Log the error and return a standardized JSON response."""
+    logger.exception("Error in %s: %s", endpoint, error)
+    return JSONResponse(
+        status_code=500,
+        content={"error": "Ocorreu um erro interno. Por favor, tente novamente mais tarde."},
+    )
 
 app = FastAPI(
     title="Assistente Virtual E-commerce",
@@ -71,7 +83,7 @@ async def chat(message: Message):
         response = await assistente.processar_mensagem(message.content, message.context)
         return {"response": response}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return handle_error("chat", e)
 
 @app.post("/search/products")
 async def search_products(search: ProductSearch):
@@ -82,7 +94,7 @@ async def search_products(search: ProductSearch):
         results = await rag_system.search_products(search.query, search.filters)
         return {"products": results}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return handle_error("search_products", e)
 
 @app.post("/query/knowledge")
 async def query_knowledge(query: KnowledgeQuery):
@@ -93,7 +105,7 @@ async def query_knowledge(query: KnowledgeQuery):
         results = await rag_system.query_knowledge_base(query.query)
         return {"information": results}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return handle_error("query_knowledge", e)
 
 @app.get("/chat/history")
 async def get_chat_history():
