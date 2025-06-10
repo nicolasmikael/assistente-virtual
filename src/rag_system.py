@@ -6,6 +6,7 @@ from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import numpy as np
 from functools import lru_cache
+import re
 
 class RAGSystem:
     def __init__(self):
@@ -28,7 +29,7 @@ class RAGSystem:
             ID: {product['id']}
             Nome: {product['nome']}
             Categoria: {product['categoria']}
-            Preço: R${product['preco']}
+            Preço: R${product['preco']:.2f}
             Descrição: {product['descricao']}
             Especificações: {json.dumps(product['especificacoes'], ensure_ascii=False)}
             Disponibilidade: {'Disponível' if product['disponivel'] else 'Indisponível'}
@@ -138,9 +139,26 @@ class RAGSystem:
         Returns:
             List of relevant information chunks
         """
-        docs = self.knowledge_base_index.similarity_search(query, k=3)
+        docs = self.knowledge_base_index.similarity_search(query, k=5)
         return [doc.page_content for doc in docs]
 
     @lru_cache(maxsize=1000)
     def get_embedding(self, text: str):
-        return self.embeddings.embed_query(text) 
+        return self.embeddings.embed_query(text)
+
+    def checar_prazo_troca(self, query: str) -> str:
+        if "troca" in query.lower() and "dia" in query.lower():
+            with open("data/politicas.md", "r", encoding="utf-8") as f:
+                politicas = f.read()
+            match = re.search(r'([0-9]+) dias corridos para solicitar a troca', politicas)
+            if match:
+                dias = int(match.group(1))
+                match_pergunta = re.search(r'depois de ([0-9]+) dias', query)
+                if match_pergunta:
+                    dias_pergunta = int(match_pergunta.group(1))
+                    if dias_pergunta > dias:
+                        return f"Não, o prazo para solicitar a troca é de {dias} dias corridos após a compra."
+                    else:
+                        return f"Sim, você pode solicitar a troca em até {dias} dias corridos após a compra."
+                return f"O prazo para solicitar a troca é de {dias} dias corridos após a compra."
+        return None 

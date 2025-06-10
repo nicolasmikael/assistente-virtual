@@ -76,10 +76,7 @@ async def chat(message: Message):
     Process a chat message and return the assistant's response.
     """
     try:
-        # Perguntas genéricas sobre pedidos (sem número)
-        if any(keyword in message.content.lower() for keyword in ['status do pedido', 'meu pedido', 'acompanhar pedido', 'onde está meu pedido', 'pedido', 'acompanhar entrega']) and not re.search(r'pedido[\\s#:]*[0-9]+', message.content.lower()):
-            return {"response": "Para consultar o status do seu pedido, por favor informe o número do pedido. Exemplo: 'Qual o status do pedido #12345?'"}
-
+        # Remove a interceptação de mensagens de pedido para permitir que o assistente processe
         response = await assistente.processar_mensagem(message.content, message.context)
         return {"response": response}
     except Exception as e:
