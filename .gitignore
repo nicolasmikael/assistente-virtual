@@ -58,9 +58,6 @@ deploy/
 htmlcov/
 .pytest_cache/
 
-# Dados
-data/
-
 # Deploy
 deploy/
 
