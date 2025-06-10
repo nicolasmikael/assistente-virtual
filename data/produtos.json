@@ -1,0 +1,74 @@
+[
+  {
+    "id": "PROD001",
+    "nome": "Notebook Dell Inspiron 15",
+    "categoria": "Eletrônicos",
+    "preco": 2899.99,
+    "descricao": "Notebook ideal para trabalho e estudos, com processador Intel i5, 8GB de RAM e SSD de 256GB.",
+    "especificacoes": {
+      "tela": "15.6 polegadas",
+      "processador": "Intel i5",
+      "memoria": "8GB RAM",
+      "armazenamento": "256GB SSD",
+      "sistema_operacional": "Windows 11"
+    },
+    "disponivel": true
+  },
+  {
+    "id": "PROD002",
+    "nome": "Smartphone Samsung Galaxy S21",
+    "categoria": "Eletrônicos",
+    "preco": 1999.99,
+    "descricao": "Smartphone Android com câmera de alta resolução, tela AMOLED e processador Snapdragon.",
+    "especificacoes": {
+      "tela": "6.2 polegadas",
+      "processador": "Snapdragon 888",
+      "memoria": "8GB RAM",
+      "armazenamento": "128GB",
+      "camera": "Tripla 12MP"
+    },
+    "disponivel": true
+  },
+  {
+    "id": "PROD003",
+    "nome": "Jogo de Panelas Tramontina",
+    "categoria": "Casa",
+    "preco": 399.99,
+    "descricao": "Conjunto de 5 panelas em aço inox com cabo em baquelite.",
+    "especificacoes": {
+      "material": "Aço Inox",
+      "quantidade": "5 peças",
+      "tipo": "Antiaderente",
+      "garantia": "10 anos"
+    },
+    "disponivel": true
+  },
+  {
+    "id": "PROD004",
+    "nome": "Tênis Nike Air Max",
+    "categoria": "Esportes",
+    "preco": 499.99,
+    "descricao": "Tênis esportivo com tecnologia Air Max para máximo conforto.",
+    "especificacoes": {
+      "material": "Mesh",
+      "solado": "Borracha",
+      "tecnologia": "Air Max",
+      "indicado_para": "Corrida"
+    },
+    "disponivel": true
+  },
+  {
+    "id": "PROD005",
+    "nome": "Livro Python para Iniciantes",
+    "categoria": "Livros",
+    "preco": 89.9,
+    "descricao": "Guia completo para iniciantes em programação Python.",
+    "especificacoes": {
+      "autor": "John Smith",
+      "paginas": 300,
+      "idioma": "Português",
+      "formato": "Capa Dura"
+    },
+    "disponivel": true
+  }
+]
