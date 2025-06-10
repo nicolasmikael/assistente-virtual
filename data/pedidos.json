@@ -1,0 +1,26 @@
+[
+  {
+    "pedido_id": "12345",
+    "status": "Em trânsito",
+    "produtos": [
+      {
+        "id": "PROD001",
+        "nome": "Notebook Dell Inspiron 15"
+      }
+    ],
+    "data_compra": "2024-01-15",
+    "previsao_entrega": "2024-01-20"
+  },
+  {
+    "pedido_id": "67890",
+    "status": "Entregue",
+    "produtos": [
+      {
+        "id": "PROD003",
+        "nome": "Jogo de Panelas Tramontina"
+      }
+    ],
+    "data_compra": "2024-02-10",
+    "previsao_entrega": "2024-02-15"
+  }
+]

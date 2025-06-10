@@ -36,7 +36,6 @@ env/
 # Logs e dados
 *.log
 *.csv
-*.json
 *.db
 *.sqlite3
 
@@ -57,8 +56,6 @@ deploy/
 htmlcov/
 .pytest_cache/
 
-# Deploy
-deploy/
 
 # Arquivos do sistema
 .DS_Store
