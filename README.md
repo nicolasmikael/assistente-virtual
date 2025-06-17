@@ -115,7 +115,7 @@ Envia uma mensagem para o assistente e recebe uma resposta.
 }
 ```
 
-## 🧪 Testes
+## Testes
 
 Para executar os testes:
 
@@ -135,8 +135,7 @@ pytest
 
 - Nícolas Mikael - _Desenvolvimento Inicial_
 
-## 🙏 Agradecimentos
+## Agradecimentos
 
 - OpenAI pelo modelo GPT
 - Comunidade LangChain
-- Todos os contribuidores do projeto
