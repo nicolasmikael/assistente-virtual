@@ -1,223 +1,142 @@
-# 🎯 Projeto Final - Assistente Virtual Personalizado
+# Codex - Sistema de Assistente Virtual com RAG
 
-## 📋 Sobre o Projeto
+Este projeto implementa um sistema de assistente virtual inteligente utilizando técnicas de RAG (Retrieval-Augmented Generation) para fornecer respostas precisas e contextualizadas sobre pedidos e produtos.
 
-Este é o projeto final do curso, onde você aplicará todo o conhecimento adquirido nas 9 aulas anteriores para construir um assistente virtual completo e funcional.
+## Funcionalidades
 
-### Objetivo
-Desenvolver um assistente virtual inteligente para e-commerce que auxilia clientes em:
-- Busca de produtos
-- Resolução de dúvidas sobre pedidos
-- Suporte ao cliente
+- Processamento de consultas em linguagem natural
+- Sistema RAG para recuperação de informações relevantes
+- API REST para integração com outros sistemas
+- Suporte a múltiplos formatos de dados
+- Processamento assíncrono de consultas
+- Sistema de cache para otimização de performance
 
-### Justificativa
-Este projeto simula um cenário real do mercado e integra todos os conceitos estudados:
-- RAG (Retrieval Augmented Generation)
-- Embeddings
-- APIs
-- Prompt Engineering
-- Deploy
-- Monitoramento
+## Tecnologias Utilizadas
 
-## 🎯 Funcionalidades Obrigatórias
+- Python 3.8+
+- FastAPI
+- LangChain
+- OpenAI GPT
+- FAISS (Facebook AI Similarity Search)
+- Pandas
+- Uvicorn
 
-### 1. Busca Inteligente de Produtos
-- Busca semântica de produtos
-- Filtros por preço e características
-- Exemplo: "Quero um notebook para programar, até R$ 3.000"
+## Pré-requisitos
 
-### 2. Políticas da Loja
-- Informações sobre trocas e devoluções
-- Prazos de entrega
-- Exemplo: "Como faço para trocar um produto?"
+- Python 3.8 ou superior
+- pip (gerenciador de pacotes Python)
+- Ambiente virtual Python (recomendado)
 
-### 3. Consulta de Pedidos
-- Status de pedidos
-- Cancelamentos
-- Exemplo: "Cadê meu pedido #12345?"
+## Instalação
 
-### 4. Recomendações Personalizadas
-- Sugestões baseadas em preferências
-- Exemplo: "O que vocês recomendam para quem gosta de tecnologia?"
+1. Clone o repositório:
 
-## 🏗️ Arquitetura do Sistema
-
-```mermaid
-graph TD
-    A[Cliente faz pergunta] --> B[API recebe]
-    B --> C[Assistente decide ação]
-    C --> D1[Buscar produtos]
-    C --> D2[Consultar pedidos]
-    C --> D3[Responder dúvidas]
-    D1 --> E[Resposta inteligente]
-    D2 --> E
-    D3 --> E
+```bash
+git clone [URL_DO_REPOSITÓRIO]
+cd codex-test
 ```
 
-## 📚 Tecnologias Utilizadas
+2. Crie e ative um ambiente virtual:
 
-### Core
-- **LangChain** - Framework principal
-- **OpenAI API** - Geração de respostas
-- **FAISS/Pinecone** - Busca vetorial
-- **FastAPI** - Backend API
-- **Docker** - Containerização
-
-### Deploy (Escolha uma)
-- Render (mais fácil, gratuito)
-- Railway (fácil, barato)
-- AWS/GCP (mais profissional)
-
-## 📁 Estrutura do Projeto
-
-```
-meu-assistente-virtual/
-├── src/
-│   ├── assistente.py          # Lógica principal
-│   ├── rag_system.py          # Sistema RAG
-│   ├── api.py                 # FastAPI endpoints
-│   └── prompts.py             # Templates
-├── data/
-│   ├── produtos.json          # Catálogo
-│   ├── pedidos.json           # Base de pedidos
-│   └── politicas.md           # Documentos
-├── deploy/
-│   ├── Dockerfile
-│   └── requirements.txt
-├── README.md
-└── .env
+```bash
+python -m venv venv
+# Windows
+.\venv\Scripts\activate
+# Linux/Mac
+source venv/bin/activate
 ```
 
-## 📊 Dados Necessários
+3. Instale as dependências:
 
-### 1. Catálogo de Produtos
+```bash
+pip install -r requirements.txt
+```
+
+4. Configure as variáveis de ambiente:
+   Crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
+
+```
+OPENAI_API_KEY=sua_chave_api
+```
+
+## Estrutura do Projeto
+
+```
+codex-test/
+├── data/               # Diretório para armazenamento de dados
+├── deploy/            # Scripts e configurações de deploy
+├── src/               # Código fonte principal
+│   ├── api.py         # Implementação da API REST
+│   ├── assistente.py  # Lógica principal do assistente
+│   ├── rag_system.py  # Sistema RAG
+│   ├── prompts.py     # Templates de prompts
+│   └── static/        # Arquivos estáticos
+├── tests/             # Testes automatizados
+├── requirements.txt   # Dependências do projeto
+└── README.md         # Documentação
+```
+
+## Uso
+
+1. Inicie o servidor:
+
+```bash
+uvicorn src.api:app --reload
+```
+
+2. A API estará disponível em `http://localhost:8000`
+
+3. Endpoints disponíveis:
+
+- `POST /chat`: Envia uma mensagem para o assistente
+- `GET /health`: Verifica o status do servidor
+
+## Documentação da API
+
+### POST /chat
+
+Envia uma mensagem para o assistente e recebe uma resposta.
+
+**Request Body:**
+
 ```json
 {
-  "id": "PROD001",
-  "nome": "Notebook Dell Inspiron 15",
-  "categoria": "Eletrônicos",
-  "preco": 2899.99,
-  "descricao": "Notebook ideal para trabalho e estudos...",
-  "especificacoes": {
-    "tela": "15.6 polegadas",
-    "processador": "Intel i5",
-    "memoria": "8GB RAM"
-  },
-  "disponivel": true
+  "message": "Qual é o status do pedido 123?",
+  "session_id": "optional_session_id"
 }
 ```
 
-### 2. Base de Conhecimento
-- Política de trocas e devoluções
-- Prazos de entrega por região
-- Formas de pagamento
-- Garantias
-- Contato e suporte
+**Response:**
 
-### 3. Pedidos de Exemplo
 ```json
 {
-  "pedido_id": "12345",
-  "status": "Em trânsito",
-  "produtos": [...],
-  "data_compra": "2024-01-15",
-  "previsao_entrega": "2024-01-20"
+  "response": "Resposta do assistente",
+  "session_id": "session_id"
 }
 ```
 
-## 🧪 Testes Obrigatórios
+## 🧪 Testes
 
-1. **Busca de Produtos**
-   - Input: "Quero um smartphone Android, tela grande, até R$ 1.500"
-   - Output: Lista de smartphones compatíveis
+Para executar os testes:
 
-2. **Políticas**
-   - Input: "Posso trocar um produto depois de 15 dias?"
-   - Output: Explicação da política de trocas
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
 
-3. **Status de Pedido**
-   - Input: "Meu pedido #12345 já saiu para entrega?"
-   - Output: Status atual e previsão
+## Fluxo de Trabalho
 
-4. **Recomendação**
-   - Input: "Que presente vocês sugerem para uma pessoa que gosta de cozinhar?"
-   - Output: Produtos relacionados à culinária
+1. O usuário envia uma consulta através da API
+2. O sistema RAG processa a consulta e recupera informações relevantes
+3. O assistente gera uma resposta contextualizada
+4. A resposta é retornada ao usuário
 
-5. **Conversa Natural**
-   - Input: "Oi, tudo bem? Estou procurando um presente para minha mãe"
-   - Output: Saudação amigável + ajuda personalizada
+## Autores
 
-## 📅 Cronograma
+- Nícolas Mikael - _Desenvolvimento Inicial_
 
-### Semana 1: Base do Sistema (15h)
-- Configuração do ambiente (2h)
-- Criação dos dados (4h)
-- Implementação do RAG básico (5h)
-- API inicial (4h)
+## 🙏 Agradecimentos
 
-### Semana 2: Inteligência e Integração (10h)
-- Sistema de decisões (4h)
-- Melhoria das respostas (3h)
-- Integração completa (3h)
-
-### Semana 3: Deploy e Finalização (10h)
-- Preparação para produção (4h)
-- Deploy (3h)
-- Documentação e melhorias (3h)
-
-## 📈 Critérios de Avaliação
-
-| Critério | Peso | Descrição |
-|----------|------|-----------|
-| Funcionalidade | 30% | Todas as 5 funções funcionando |
-| Qualidade RAG | 25% | Respostas precisas e relevantes |
-| Código e Estrutura | 20% | Organização, documentação, boas práticas |
-| Deploy | 15% | Aplicação funcionando online |
-| Inovação | 10% | Funcionalidades extras criativas |
-
-## 💡 Funcionalidades Extras Sugeridas
-
-- Interface web para testes
-- Histórico de conversas por usuário
-- Análise de sentimento do cliente
-- Notificações por webhook
-- Dashboard com métricas
-- Suporte a múltiplos idiomas
-- Integração com WhatsApp
-
-## 🎯 Dicas para Sucesso
-
-### Faça
-- Comece com o básico
-- Teste constantemente
-- Documente tudo
-- Peça ajuda quando necessário
-- Seja criativo
-
-### Evite
-- Começar pela parte mais difícil
-- Deixar testes para o final
-- Negligenciar a documentação
-- Buscar perfeição imediata
-- Não fazer backup do código
-
-## 🆘 Suporte
-
-- Material das aulas
-- Documentação oficial (LangChain, FastAPI, OpenAI)
-- Grupo da turma
-- Stack Overflow
-- GitHub
-
-## 🏆 Critérios de Excelência
-
-- Testes automatizados
-- Tratamento de erros robusto
-- Performance otimizada
-- Experiência do usuário fluida
-- Deploy profissional
-- Documentação completa
-
----
-
-> 💪 Este projeto é seu portfólio! Capriche na implementação e documentação.
+- OpenAI pelo modelo GPT
+- Comunidade LangChain
+- Todos os contribuidores do projeto
