@@ -1,164 +1,142 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 import os
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import numpy as np
 from functools import lru_cache
 import re
+from pathlib import Path
+from langchain_community.document_loaders import TextLoader
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class RAGSystem:
     def __init__(self):
         """Initialize the RAG system with necessary components."""
-        self.embeddings = OpenAIEmbeddings(api_key=os.getenv("OPENAI_API_KEY"))
-        self.product_index = None
-        self.knowledge_base_index = None
-        self.initialize_indices()
-
-    def initialize_indices(self):
-        """Initialize vector indices for products and knowledge base."""
-        # Load and process product data
-        with open("data/produtos.json", "r", encoding="utf-8") as f:
-            products = json.load(f)
-        
-        # Create product documents with more structured information
-        product_docs = []
-        for product in products:
-            doc = f"""
-            ID: {product['id']}
-            Nome: {product['nome']}
-            Categoria: {product['categoria']}
-            Preço: R${product['preco']:.2f}
-            Descrição: {product['descricao']}
-            Especificações: {json.dumps(product['especificacoes'], ensure_ascii=False)}
-            Disponibilidade: {'Disponível' if product['disponivel'] else 'Indisponível'}
-            """
-            product_docs.append(doc)
-        
-        # Create product index
-        self.product_index = FAISS.from_texts(
-            product_docs,
-            self.embeddings,
-            metadatas=[{"type": "product", "id": p["id"]} for p in products]
+        self.llm = ChatOpenAI(
+            model_name="gpt-4",
+            temperature=0.2,
+            api_key=os.getenv("OPENAI_API_KEY")
         )
         
-        # Load and process knowledge base
-        with open("data/politicas.md", "r", encoding="utf-8") as f:
-            knowledge_text = f.read()
+        self.embeddings = OpenAIEmbeddings(
+            api_key=os.getenv("OPENAI_API_KEY")
+        )
         
-        # Split knowledge base into chunks
+        # Initialize vector stores
+        self._init_vector_stores()
+        
+    def _init_vector_stores(self):
+        """Initialize vector stores for products and knowledge base."""
+        # Get project root directory
+        project_root = Path(__file__).parent.parent.absolute()
+        
+        # Initialize products vector store
+        products_file = project_root / 'data' / 'produtos.json'
+        if products_file.exists():
+            with open(products_file, 'r', encoding='utf-8') as f:
+                self.produtos = json.load(f)
+        else:
+            self.produtos = []
+            
+        # Initialize knowledge base vector store
+        knowledge_dir = project_root / 'data' / 'knowledge'
+        if knowledge_dir.exists():
+            self.knowledge_base = self._load_knowledge_base(knowledge_dir)
+        else:
+            self.knowledge_base = None
+            
+    def _load_knowledge_base(self, knowledge_dir: Path) -> FAISS:
+        """Load and process knowledge base documents."""
+        documents = []
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200
         )
-        knowledge_chunks = text_splitter.split_text(knowledge_text)
         
-        # Create knowledge base index
-        self.knowledge_base_index = FAISS.from_texts(
-            knowledge_chunks,
-            self.embeddings,
-            metadatas=[{"type": "knowledge"} for _ in knowledge_chunks]
-        )
-
-    async def search_products(self, query: str, filters: Dict[str, Any] = None) -> List[Dict]:
-        """
-        Search for products using semantic search and filters.
-        
-        Args:
-            query: The search query
-            filters: Optional filters (price range, category, etc.)
+        for file in knowledge_dir.glob('*.txt'):
+            loader = TextLoader(str(file), encoding='utf-8')
+            documents.extend(loader.load())
             
-        Returns:
-            List of matching products
-        """
-        # Perform semantic search with higher k for better recall
-        docs = self.product_index.similarity_search_with_score(query, k=10)
-        
-        # Load full product data
-        with open("data/produtos.json", "r", encoding="utf-8") as f:
-            all_products = json.load(f)
-        
-        # Filter and score results
-        scored_results = []
-        for doc, score in docs:
-            product_id = doc.metadata["id"]
-            product = next((p for p in all_products if p["id"] == product_id), None)
+        if not documents:
+            return None
             
-            if product and self._apply_filters(product, filters):
-                # Calculate relevance score based on multiple factors
-                relevance_score = self._calculate_relevance_score(product, query, score)
-                scored_results.append((product, relevance_score))
+        texts = text_splitter.split_documents(documents)
+        return FAISS.from_documents(texts, self.embeddings)
         
-        # Sort by relevance score and return top results
-        scored_results.sort(key=lambda x: x[1], reverse=True)
-        return [product for product, _ in scored_results[:3]]  # Return top 3 most relevant products
-
-    def _calculate_relevance_score(self, product: Dict, query: str, semantic_score: float) -> float:
-        """Calculate a relevance score for a product based on multiple factors."""
-        query = query.lower()
-        score = 1.0 - semantic_score  # Convert distance to similarity score
-        
-        # Boost score for exact matches in name
-        if any(word in product['nome'].lower() for word in query.split()):
-            score *= 1.5
-        
-        # Boost score for category matches
-        if any(word in product['categoria'].lower() for word in query.split()):
-            score *= 1.3
-        
-        # Boost score for description matches
-        if any(word in product['descricao'].lower() for word in query.split()):
-            score *= 1.2
-        
-        return score
-
-    def _apply_filters(self, product: Dict, filters: Dict[str, Any] = None) -> bool:
-        """Apply filters to a product."""
-        if not filters:
-            return True
+    async def search_products(self, query: str, filters: Optional[Dict] = None) -> List[Dict]:
+        """Search for products using semantic search and filters."""
+        if not self.produtos:
+            return []
             
-        if "max_price" in filters and product["preco"] > filters["max_price"]:
-            return False
+        # Apply filters if provided
+        filtered_products = self.produtos
+        if filters:
+            if 'category' in filters:
+                filtered_products = [p for p in filtered_products if p['categoria'].lower() == filters['category'].lower()]
+            if 'min_price' in filters:
+                filtered_products = [p for p in filtered_products if p['preco'] >= filters['min_price']]
+            if 'max_price' in filters:
+                filtered_products = [p for p in filtered_products if p['preco'] <= filters['max_price']]
+                
+        # If no products after filtering, return empty list
+        if not filtered_products:
+            return []
             
-        if "min_price" in filters and product["preco"] < filters["min_price"]:
-            return False
+        # Get query embedding
+        query_embedding = await self.embeddings.aembed_query(query)
+        
+        # Calculate similarity scores
+        scored_products = []
+        for product in filtered_products:
+            # Create a text representation of the product
+            product_text = f"{product['nome']} {product['descricao']} {product['categoria']}"
+            product_embedding = await self.embeddings.aembed_query(product_text)
             
-        if "category" in filters and product["categoria"].lower() != filters["category"].lower():
-            return False
+            # Calculate cosine similarity
+            similarity = self._cosine_similarity(query_embedding, product_embedding)
+            scored_products.append((product, similarity))
             
-        return True
-
+        # Sort by similarity score and return top 5
+        scored_products.sort(key=lambda x: x[1], reverse=True)
+        return [p[0] for p in scored_products[:5]]
+        
+    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """Calculate cosine similarity between two vectors."""
+        dot_product = sum(a * b for a, b in zip(vec1, vec2))
+        norm1 = sum(a * a for a in vec1) ** 0.5
+        norm2 = sum(b * b for b in vec2) ** 0.5
+        return dot_product / (norm1 * norm2) if norm1 * norm2 != 0 else 0
+        
     async def query_knowledge_base(self, query: str) -> List[str]:
-        """
-        Query the knowledge base for relevant information.
-        
-        Args:
-            query: The question or query
+        """Query the knowledge base for relevant information."""
+        if not self.knowledge_base:
+            return []
             
-        Returns:
-            List of relevant information chunks
-        """
-        docs = self.knowledge_base_index.similarity_search(query, k=5)
+        # Search for relevant documents
+        docs = self.knowledge_base.similarity_search(query, k=3)
         return [doc.page_content for doc in docs]
+        
+    def checar_prazo_troca(self, mensagem: str) -> Optional[str]:
+        """Check if the message is about exchange deadline and return appropriate response."""
+        if any(keyword in mensagem.lower() for keyword in ['prazo', 'troca', 'devolução', 'devolucao', 'trocas', 'devoluções', 'devolucoes']):
+            return """O prazo para troca ou devolução é de 7 dias corridos a partir do recebimento do produto.
+
+Para realizar uma troca ou devolução:
+1. Entre em contato com nosso suporte
+2. Informe o número do pedido
+3. Descreva o motivo da troca/devolução
+4. Aguarde as instruções para envio do produto
+
+Observações:
+- O produto deve estar em perfeito estado
+- A embalagem original deve estar intacta
+- Todos os acessórios e manuais devem ser incluídos"""
+        return None
 
     @lru_cache(maxsize=1000)
     def get_embedding(self, text: str):
         return self.embeddings.embed_query(text)
-
-    def checar_prazo_troca(self, query: str) -> str:
-        if "troca" in query.lower() and "dia" in query.lower():
-            with open("data/politicas.md", "r", encoding="utf-8") as f:
-                politicas = f.read()
-            match = re.search(r'([0-9]+) dias corridos para solicitar a troca', politicas)
-            if match:
-                dias = int(match.group(1))
-                match_pergunta = re.search(r'depois de ([0-9]+) dias', query)
-                if match_pergunta:
-                    dias_pergunta = int(match_pergunta.group(1))
-                    if dias_pergunta > dias:
-                        return f"Não, o prazo para solicitar a troca é de {dias} dias corridos após a compra."
-                    else:
-                        return f"Sim, você pode solicitar a troca em até {dias} dias corridos após a compra."
-                return f"O prazo para solicitar a troca é de {dias} dias corridos após a compra."
-        return None 

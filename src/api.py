@@ -1,13 +1,14 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
-from typing import Optional, Dict
+from typing import Dict, List, Optional
 from pathlib import Path
 from dotenv import load_dotenv
 import logging
 import re
+import json
 
 from assistente import AssistenteVirtual
 from rag_system import RAGSystem
@@ -52,15 +53,15 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 assistente = AssistenteVirtual()
 rag_system = RAGSystem()
 
-class Message(BaseModel):
+class ChatRequest(BaseModel):
     content: str
     context: Optional[Dict] = None
 
-class ProductSearch(BaseModel):
+class SearchRequest(BaseModel):
     query: str
     filters: Optional[Dict] = None
 
-class KnowledgeQuery(BaseModel):
+class KnowledgeRequest(BaseModel):
     query: str
 
 @app.get("/")
@@ -71,53 +72,48 @@ async def read_root():
     return FileResponse(str(STATIC_DIR / "index.html"))
 
 @app.post("/chat")
-async def chat(message: Message):
-    """
-    Process a chat message and return the assistant's response.
-    """
+async def chat(request: ChatRequest):
+    """Processa uma mensagem do usuário e retorna a resposta do assistente."""
     try:
-        # Remove a interceptação de mensagens de pedido para permitir que o assistente processe
-        response = await assistente.processar_mensagem(message.content, message.context)
-        return {"response": response}
+        resposta = await assistente.processar_mensagem(request.content, request.context)
+        return {"response": resposta}
     except Exception as e:
-        return handle_error("chat", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/search/products")
-async def search_products(search: ProductSearch):
-    """
-    Search for products using semantic search and filters.
-    """
+async def search_products(request: SearchRequest):
+    """Busca produtos no catálogo."""
     try:
-        results = await rag_system.search_products(search.query, search.filters)
-        return {"products": results}
+        produtos = await rag_system.search_products(request.query, request.filters)
+        return {"products": produtos}
     except Exception as e:
-        return handle_error("search_products", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/query/knowledge")
-async def query_knowledge(query: KnowledgeQuery):
-    """
-    Query the knowledge base for relevant information.
-    """
+async def query_knowledge(request: KnowledgeRequest):
+    """Consulta a base de conhecimento."""
     try:
-        results = await rag_system.query_knowledge_base(query.query)
-        return {"information": results}
+        info_chunks = await rag_system.query_knowledge_base(request.query)
+        return {"chunks": info_chunks}
     except Exception as e:
-        return handle_error("query_knowledge", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/chat/history")
 async def get_chat_history():
-    """
-    Get the chat history.
-    """
-    return {"history": assistente.get_chat_history()}
+    """Retorna o histórico de chat."""
+    try:
+        return {"history": assistente.get_chat_history()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/chat/history")
 async def clear_chat_history():
-    """
-    Clear the chat history.
-    """
-    assistente.clear_chat_history()
-    return {"message": "Chat history cleared"}
+    """Limpa o histórico de chat."""
+    try:
+        assistente.clear_chat_history()
+        return {"message": "Histórico de chat limpo com sucesso"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
