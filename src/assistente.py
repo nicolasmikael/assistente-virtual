@@ -1,16 +1,37 @@
+import os
 from typing import Dict, List, Optional
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema import HumanMessage, SystemMessage
-import os
 from dotenv import load_dotenv
 from datetime import datetime
 from rag_system import RAGSystem
 import re
 import json
+from pathlib import Path
 from prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
 
 load_dotenv()
+
+# Get the absolute path to the project root directory
+PROJECT_ROOT = Path(__file__).parent.parent.absolute()
+PEDIDOS_FILE = PROJECT_ROOT / 'data' / 'pedidos.json'
+
+def load_pedidos() -> List[Dict]:
+    """Carrega os pedidos do arquivo JSON."""
+    try:
+        if not PEDIDOS_FILE.exists():
+            return []
+            
+        with open(PEDIDOS_FILE, 'r', encoding='utf-8') as f:
+            pedidos = json.load(f)
+            
+        if not isinstance(pedidos, list):
+            return []
+            
+        return pedidos
+    except Exception:
+        return []
 
 def filtrar_resposta_produtos(resposta: str, produtos_catalogo: List[Dict]) -> str:
     nomes_produtos = [p['nome'].lower() for p in produtos_catalogo]
@@ -27,16 +48,15 @@ class AssistenteVirtual:
     def __init__(self):
         """Initialize the virtual assistant with necessary components."""
         self.llm = ChatOpenAI(
-            model_name="o4-mini",
-            temperature=1,
+            model_name="gpt-4",
+            temperature=0.1,
             api_key=os.getenv("OPENAI_API_KEY")
         )
         
         self.rag_system = RAGSystem()
-        
         self.system_prompt = SYSTEM_PROMPT
-        
         self.chat_history: List[Dict] = []
+        self.pedidos = load_pedidos()
 
     def _extract_category(self, message: str) -> Optional[str]:
         """Extract category from message if present."""
@@ -54,10 +74,11 @@ class AssistenteVirtual:
         return None
 
     def _buscar_pedido(self, mensagem: str) -> Optional[Dict]:
-        # Tenta extrair o número do pedido em qualquer formato
+        """Busca informações de um pedido específico."""
         pedido_id = None
-        # Primeiro tenta o padrão mais comum
-        match = re.search(r'pedido[\s#:]*([0-9]+)', mensagem.lower())
+        
+        # Procura por padrões como #12345, pedido: 12345, etc.
+        match = re.search(r'(?:pedido[\s#:]*|#)(\d+)', mensagem.lower())
         if match:
             pedido_id = match.group(1)
         else:
@@ -66,41 +87,44 @@ class AssistenteVirtual:
                 numeros = re.findall(r'\d+', mensagem)
                 if numeros:
                     pedido_id = numeros[0]
+        
         if not pedido_id:
             return None
-        try:
-            with open('data/pedidos.json', 'r', encoding='utf-8') as f:
-                pedidos = json.load(f)
-            for pedido in pedidos:
-                if str(pedido['pedido_id']) == str(pedido_id):
-                    return pedido
-        except Exception as e:
-            print(f"Erro ao buscar pedido: {e}")
+            
+        # Converte para string e remove espaços para comparação
+        pedido_id = str(pedido_id).strip()
+        
+        # Recarrega pedidos para garantir dados atualizados
+        self.pedidos = load_pedidos()
+        
+        for pedido in self.pedidos:
+            pedido_atual = str(pedido['pedido_id']).strip()
+            if pedido_atual == pedido_id:
+                return pedido
+                
         return None
 
     async def processar_mensagem(self, mensagem: str, contexto: Optional[Dict] = None) -> str:
-        """
-        Process a user message and return an appropriate response.
-        
-        Args:
-            mensagem: The user's message
-            contexto: Optional context information (e.g., user preferences, order history)
-            
-        Returns:
-            str: The assistant's response
-        """
         try:
-            # Consulta de pedidos (primeiro tenta buscar o pedido)
+            # Checagem simples de prazo de troca
+            resposta_troca = self.rag_system.checar_prazo_troca(mensagem)
+            if resposta_troca:
+                return resposta_troca
+
+            # Consulta de pedidos
             if 'pedido' in mensagem.lower():
                 pedido = self._buscar_pedido(mensagem)
+                
                 if pedido:
-                    produtos = ', '.join([p['nome'] for p in pedido['produtos']])
-                    return f"Status do pedido {pedido['pedido_id']}: {pedido['status']}. Produtos: {produtos}. Data da compra: {pedido['data_compra']}. Previsão de entrega: {pedido['previsao_entrega']}."
-                # Se não encontrou número, oriente o usuário
-                if not re.search(r'\d+', mensagem):
-                    return "Para consultar o status do seu pedido, por favor informe o número do pedido. Exemplo: 'Qual o status do pedido #12345?'"
-                else:
+                    try:
+                        produtos = ', '.join([p['nome'] for p in pedido['produtos']])
+                        return f"Status do pedido {pedido['pedido_id']}: {pedido['status']}. Produtos: {produtos}. Data da compra: {pedido['data_compra']}. Previsão de entrega: {pedido['previsao_entrega']}."
+                    except KeyError:
+                        return "Desculpe, encontrei o pedido mas há informações faltando. Por favor, entre em contato com o suporte."
+                elif re.search(r'\d+', mensagem):
                     return "Desculpe, não encontrei esse pedido em nossa base. Verifique o número e tente novamente."
+                else:
+                    return "Para consultar o status do seu pedido, por favor informe o número do pedido. Exemplo: 'Qual o status do pedido #12345?'"
 
             # Perguntas sobre produtos
             if any(keyword in mensagem.lower() for keyword in ['produto', 'produtos', 'notebook', 'smartphone', 'celular', 'computador', 'livro', 'tênis', 'panelas', 'cozinha', 'presente']):
@@ -108,8 +132,19 @@ class AssistenteVirtual:
                 filters = {"category": category} if category else None
                 produtos = await self.rag_system.search_products(mensagem, filters)
                 if produtos:
-                    produtos_info = "\n".join([f"{i+1}. {p['nome']} - {p['descricao']}" for i, p in enumerate(produtos)])
-                    contexto_produtos = f"Produtos disponíveis no catálogo:\n{produtos_info}"
+                    produtos_info = []
+                    for i, p in enumerate(produtos):
+                        specs = ", ".join([f"{k}: {v}" for k, v in p['especificacoes'].items()])
+                        produto_info = f"""
+{i+1}. {p['nome']}
+   Preço: R${p['preco']:.2f}
+   Categoria: {p['categoria']}
+   Descrição: {p['descricao']}
+   Especificações: {specs}
+   Status: {'Disponível' if p['disponivel'] else 'Indisponível'}
+"""
+                        produtos_info.append(produto_info)
+                    contexto_produtos = "Produtos disponíveis no catálogo:\n" + "\n".join(produtos_info)
                 else:
                     contexto_produtos = "Nenhum produto relevante encontrado no catálogo."
                 prompt_text = USER_PROMPT_TEMPLATE.format(mensagem=mensagem, produtos_contexto=produtos_info if produtos else "Nenhum produto relevante encontrado.")
@@ -151,9 +186,7 @@ class AssistenteVirtual:
             
             return resposta_texto
             
-        except Exception as e:
-            # Log the error and return a graceful error message
-            print(f"Error processing message: {str(e)}")
+        except Exception:
             return "Desculpe, tive um problema ao processar sua mensagem. Por favor, tente novamente em alguns instantes."
 
     def get_chat_history(self) -> List[Dict]:
